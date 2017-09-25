@@ -13,6 +13,7 @@ public protocol ActiveLabelDelegate: class {
     func didSelectText(text: String, type: ActiveType)
 }
 
+public typealias ConfigureLinkAttribute = (ActiveType, [String : AnyObject], Bool) -> ([String : AnyObject])
 typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveType)
 
 @IBDesignable public class ActiveLabel: UILabel {
@@ -23,6 +24,8 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     public var enabledTypes: [ActiveType] = [.Mention, .Hashtag, .URL]
 
     public var urlMaximumLength: Int?
+    
+    public var configureLinkAttribute: ConfigureLinkAttribute?
 
     @IBInspectable public var mentionColor: UIColor = .blueColor() {
         didSet { updateTextStorage(parseText: false) }
@@ -54,6 +57,20 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     @IBInspectable public var minimumLineHeight: CGFloat = 0 {
         didSet { updateTextStorage(parseText: false) }
     }
+
+    @IBInspectable public var highlightFontName: String? = nil {
+        didSet { updateTextStorage(parseText: false) }
+    }
+    @IBInspectable public var highlightFontSize: CGFloat? = nil {
+        didSet { updateTextStorage(parseText: false) }
+    }
+    
+    // MARK: - Computed Properties
+    private var hightlightFont: UIFont? {
+        guard let highlightFontName = highlightFontName, let highlightFontSize = highlightFontSize else { return nil }
+        return UIFont(name: highlightFontName, size: highlightFontSize)
+    }
+
     // MARK: - public methods
     public func handleMentionTap(handler: (String) -> ()) {
         mentionTapHandler = handler
@@ -69,6 +86,19 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
 
     public func handleCustomTap(for type: ActiveType, handler: (String) -> ()) {
         customTapHandlers[type] = handler
+    }
+	
+    public func removeHandle(for type: ActiveType) {
+        switch type {
+        case .Hashtag:
+            hashtagTapHandler = nil
+        case .Mention:
+            mentionTapHandler = nil
+        case .URL:
+            urlTapHandler = nil
+        case .Custom:
+            customTapHandlers[type] = nil
+        }
     }
 
     public func filterMention(predicate: (String) -> Bool) {
@@ -203,12 +233,12 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     // MARK: - private properties
     private var _customizing: Bool = true
     private var defaultCustomColor: UIColor = .blackColor()
-
+    
     private var mentionTapHandler: ((String) -> ())?
     private var hashtagTapHandler: ((String) -> ())?
     private var urlTapHandler: ((NSURL) -> ())?
     private var customTapHandlers: [ActiveType : ((String) -> ())] = [:]
-
+    
     private var mentionFilterPredicate: ((String) -> Bool)?
     private var hashtagFilterPredicate: ((String) -> Bool)?
 
@@ -220,6 +250,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     lazy var activeElements = [ActiveType: [ElementTuple]]()
 
     // MARK: - helper functions
+    
     private func setupLabel() {
         textStorage.addLayoutManager(layoutManager)
         layoutManager.addTextContainer(textContainer)
@@ -287,6 +318,14 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             case .Hashtag: attributes[NSForegroundColorAttributeName] = hashtagColor
             case .URL: attributes[NSForegroundColorAttributeName] = URLColor
             case .Custom: attributes[NSForegroundColorAttributeName] = customColor[type] ?? defaultCustomColor
+            }
+            
+            if let highlightFont = hightlightFont {
+                attributes[NSFontAttributeName] = highlightFont
+            }
+			
+            if let configureLinkAttribute = configureLinkAttribute {
+                attributes = configureLinkAttribute(type, attributes, false)
             }
 
             for element in elements {
@@ -371,6 +410,14 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             case .Custom: unselectedColor = customColor[selectedElement.type] ?? defaultCustomColor
             }
             attributes[NSForegroundColorAttributeName] = unselectedColor
+        }
+        
+        if let highlightFont = hightlightFont {
+            attributes[NSFontAttributeName] = highlightFont
+        }
+        
+        if let configureLinkAttribute = configureLinkAttribute {
+            attributes = configureLinkAttribute(type, attributes, isSelected)
         }
 
         textStorage.addAttributes(attributes, range: selectedElement.range)
