@@ -9,14 +9,14 @@
 import Foundation
 
 enum ActiveElement {
-    case Mention(String)
+    case Mention(Bool, String)
     case Hashtag(String)
     case URL(original: String, trimmed: String)
     case Custom(String)
 
     static func create(with activeType: ActiveType, text: String) -> ActiveElement {
         switch activeType {
-        case .Mention: return Mention(text)
+        case .Mention(let allowDot): return Mention(allowDot, text)
         case .Hashtag: return Hashtag(text)
         case .URL: return URL(original: text, trimmed: text)
         case .Custom: return Custom(text)
@@ -25,14 +25,14 @@ enum ActiveElement {
 }
 
 public enum ActiveType {
-    case Mention
+    case Mention(Bool)
     case Hashtag
     case URL
     case Custom(pattern: String)
 
     var pattern: String {
         switch self {
-        case .Mention: return RegexParser.mentionPattern
+        case .Mention(let allowDot): return "\(RegexParser.startMentionPatern)\(allowDot ? "." : "")\(RegexParser.endMentionPattern)"
         case .Hashtag: return RegexParser.hashtagPattern
         case .URL: return RegexParser.urlPattern
         case .Custom(let regex): return regex
@@ -53,7 +53,7 @@ extension ActiveType: Hashable, Equatable {
 
 public func ==(lhs: ActiveType, rhs: ActiveType) -> Bool {
     switch (lhs, rhs) {
-    case (.Mention, .Mention): return true
+    case (.Mention(let lb), .Mention(let rb)): return lb == rb
     case (.Hashtag, .Hashtag): return true
     case (.URL, .URL): return true
     case (.Custom(let pattern1), .Custom(let pattern2)): return pattern1 == pattern2

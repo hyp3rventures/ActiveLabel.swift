@@ -21,12 +21,19 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     // MARK: - public properties
     public weak var delegate: ActiveLabelDelegate?
 
-    public var enabledTypes: [ActiveType] = [.Mention, .Hashtag, .URL]
+    public var enabledTypes: [ActiveType] = [.Mention(false), .Hashtag, .URL]
 
     public var urlMaximumLength: Int?
     
     public var configureLinkAttribute: ConfigureLinkAttribute?
 
+    @IBInspectable public var allowDotInMention: Bool = false {
+        didSet {
+            enabledTypes = enabledTypes.filter({ ![.Mention(true), .Mention(false)].contains($0) })
+            enabledTypes.append(.Mention(allowDotInMention))
+            updateTextStorage(parseText: true)
+        }
+    }
     @IBInspectable public var mentionColor: UIColor = .blueColor() {
         didSet { updateTextStorage(parseText: false) }
     }
@@ -208,7 +215,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             guard let selectedElement = selectedElement else { return avoidSuperCall }
 
             switch selectedElement.element {
-            case .Mention(let userHandle): didTapMention(userHandle)
+            case .Mention(_, let userHandle): didTapMention(userHandle)
             case .Hashtag(let hashtag): didTapHashtag(hashtag)
             case .URL(let originalURL, _): didTapStringURL(originalURL)
             case .Custom(let element): didTap(element, for: selectedElement.type)
@@ -355,7 +362,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
 
         for type in enabledTypes where type != .URL{
             var filter: ((String) -> Bool)? = nil
-            if type == .Mention {
+            if [.Mention(true), .Mention(false)].contains(type) {
                 filter = mentionFilterPredicate
             } else if type == .Hashtag {
                 filter = hashtagFilterPredicate
@@ -480,7 +487,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     //MARK: - ActiveLabel handler
     private func didTapMention(username: String) {
         guard let mentionHandler = mentionTapHandler else {
-            delegate?.didSelectText(username, type: .Mention)
+            delegate?.didSelectText(username, type: .Mention(self.allowDotInMention))
             return
         }
         mentionHandler(username)
